@@ -71,14 +71,15 @@ And one environment variable:
 |---|---|
 | `BUDGETKIT_TARGET` | the target name of the deployment your requests are signed for. **It has no default.** Every command that signs refuses to run without it: `no target: a signed request names the deployment it is for (-target, or BUDGETKIT_TARGET). Without it the request is signed for nobody` |
 
-Each deployment has its own target name, and no route returns it: get it from
-Pocket Network together with the account API address. A request signed for
-another deployment is refused (`401`, api code 5), so set `BUDGETKIT_TARGET` to
-match `-url`.
+Each deployment has its own target name: `beta` for beta
+(`https://pay.beta.api.pocket.network`); the production name is published when
+production opens. A request signed for another
+deployment is refused (`401`, api code 5), so set `BUDGETKIT_TARGET` to match
+`-url`.
 
 ```sh
-export BUDGETKIT_TARGET=<TARGET>
-export BK_URL=https://pay.api.pocket.network
+export BUDGETKIT_TARGET=beta
+export BK_URL=https://pay.beta.api.pocket.network
 ```
 
 The examples below use `-url "$BK_URL"`.

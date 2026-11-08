@@ -11,6 +11,7 @@ key to sending requests and paying.
 
 Other pages:
 
+- [faq.md](faq.md): short answers to the questions newcomers ask
 - [console.md](console.md): the web console in a browser
 - [cli.md](cli.md): the `budgetkitctl` command-line tool
 - [api.md](api.md): the HTTP API, request signing, relays and error codes

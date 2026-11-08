@@ -75,9 +75,8 @@ over any other set does not verify.
 | `nonce` | quoted; 16 random bytes as 32 **lowercase** hex characters | single use. A nonce already seen is refused |
 | `tag` | quoted; `budgetkit-v1:<target>` | which deployment the request is for. A request signed for another deployment is refused (api code 5) |
 
-The `<target>` is the deployment's target name. Each deployment has its own and
-no route returns it: get it from Pocket Network together with the account API
-address. Its format is `^[a-z0-9][a-z0-9_-]{0,63}$`.
+The `<target>` is the deployment's target name: `beta` on beta, and the
+production name is published when production opens. Its format is `^[a-z0-9][a-z0-9_-]{0,63}$`.
 
 An `alg` parameter, any other parameter, a repeated parameter, a label other
 than `sig1`, or more than one signature is refused (api codes 10 to 34).
@@ -856,9 +855,9 @@ These appear only in receipts, with the matching `reason` constant:
 | 20 | `two_senders` | the transaction pays our wallet from more than one account; a payment has one payer |
 | 21 | `no_price` | the payment could not be priced; notify it again later |
 | 22 | `credit_zero` | the payment is worth less than the smallest amount credited, so nothing was credited |
-| 23 | `credit_overflow` | the payment is worth more than one credit can hold, so nothing was credited; contact us to have it returned |
+| 23 | `credit_overflow` | the payment is worth more than one credit can hold, so nothing was credited; it can be returned ([billing-rules.md](billing-rules.md#returns)) |
 | 25 | `raw_too_large` | the chain refused raw_tx as too large; once the transaction is on chain, notify its tx_hash |
-| 27 | `unattributable` | no single account funded the coin that reached our wallet, so nothing was credited; contact us to have it returned |
+| 27 | `unattributable` | no single account funded the coin that reached our wallet, so nothing was credited; it can be returned ([billing-rules.md](billing-rules.md#returns)) |
 
 ---
 

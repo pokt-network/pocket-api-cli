@@ -25,7 +25,7 @@ task, or from the published documentation; the rest are produced by the steps.
 | placeholder | what it is | where it comes from |
 |---|---|---|
 | `<API_URL>` | base URL of the account API | given. Production: `https://pay.api.pocket.network`. Beta: `https://pay.beta.api.pocket.network` |
-| `<TARGET>` | the target name every signature names | given. **There is no default and no route returns it**: get it from Pocket Network with `API_URL`. A wrong value gives api code 5 |
+| `<TARGET>` | the target name every signature names | `beta` for beta; the production name is published when production opens. It has no default, and it must match `API_URL`: a wrong value gives api code 5 |
 | `<RELAY_DOMAIN>` | domain suffix for relays | `api.pocket.network` for production, `beta.api.pocket.network` for beta |
 | `<KEY_FILE>` | path to your private key file | step A1 |
 | `<UID>` | your account id: 66 hex characters starting with `02` or `03` | step A1 |
@@ -432,8 +432,8 @@ Rejection reasons (`reason`):
 | `two_senders` | more than one sender in one transaction. Use one plain transfer |
 | `no_price` | temporary; notify the same hash again later |
 | `credit_zero` | too small to credit. Pay a larger amount |
-| `credit_overflow` | too large for one credit. Contact Pocket Network to have it returned |
-| `unattributable` | ETH reached `WALLET` funded by two or more addresses in one transaction, or a `SELFDESTRUCT` ran. Send plain ETH from `PAYER_ADDRESS` itself; contact Pocket Network to have it returned |
+| `credit_overflow` | too large for one credit. It can be returned: billing-rules.md, "Returns" |
+| `unattributable` | ETH reached `WALLET` funded by two or more addresses in one transaction, or a `SELFDESTRUCT` ran. Send plain ETH from `PAYER_ADDRESS` itself; it can be returned: billing-rules.md, "Returns" |
 | `broadcast_refused`, `raw_too_large` | only for `raw_tx`; broadcast yourself and notify `tx_hash` |
 
 **Success check:**

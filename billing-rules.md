@@ -41,8 +41,8 @@ decided whole: if any coin in it cannot be credited, none of it is.
 | Payments to us in one transaction come from two different senders | `rejected`, `two_senders` | One sender per transaction |
 | The coin has no price at the moment of the credit | `rejected`, `no_price` | Notify the hash again later: your notice reopens it |
 | The amount is worth less than one micro-dollar | `rejected`, `credit_zero` | Send more than that |
-| ETH reached us from a balance other than your account's: a Safe or other contract wallet, a vault or exchange withdrawal, a faucet, a swap paying out ETH | `rejected`, `not_the_sender` | Send ETH from your own account. The money stays in our wallet; contact Pocket Network and it is returned to the address the chain shows it came from |
-| ETH reached us in a transaction funded by two or more addresses (your value sent elsewhere while somebody else paid us, a third party paying anybody), or in which a `SELFDESTRUCT` runs | `rejected`, `unattributable` | Send plain ETH from your own account, or through a contract funded only by that send, or pay in a token. Contact Pocket Network to have it returned |
+| ETH reached us from a balance other than your account's: a Safe or other contract wallet, a vault or exchange withdrawal, a faucet, a swap paying out ETH | `rejected`, `not_the_sender` | Send ETH from your own account. The money stays in our wallet; it can be returned, see [Returns](#returns) |
+| ETH reached us in a transaction funded by two or more addresses (your value sent elsewhere while somebody else paid us, a third party paying anybody), or in which a `SELFDESTRUCT` runs | `rejected`, `unattributable` | Send plain ETH from your own account, or through a contract funded only by that send, or pay in a token. It can be returned, see [Returns](#returns) |
 | A message of another module that only looks like a transfer (not the bank module's) | not counted | Use a plain bank send |
 | The transaction was never in a block within the waiting time (24 hours after the notice, unless the deployment sets another time) | `not_found` | Notify the hash again once it is mined: that reopens it |
 | Its block was replaced by a chain reorganisation | `reorged` | Notify again; if it landed in a new block, it is read again |
@@ -57,6 +57,15 @@ customers' withdrawals, so nothing on chain says it was yours and it is never
 credited to anyone. Withdraw to your own wallet first, then pay from it and
 notify the hash. The same goes for a Safe or any other contract wallet: move the
 funds to your signing wallet, then pay.
+
+## Returns
+
+Money that reached our wallet and was not credited is never returned
+automatically. Ask on the Pocket Network Discord,
+https://discord.gg/pocket-network, with the chain and the transaction hash.
+Every return is reviewed and approved by Pocket Network case by case; an
+approved return goes to the address the chain shows the money came from, minus
+the network fee of sending it back.
 
 ## Good to know
 

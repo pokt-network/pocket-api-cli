@@ -1,8 +1,9 @@
 # Pocket API Console: CLI and documentation
 
 Paid, metered access to the services Pocket Network serves: blockchain RPC and
-the other APIs the deployment lists. Your account is a key, there is no email or
-password, and you pay in POKT or in EVM coins verified on chain.
+the other APIs the deployment lists. Your account is a secp256k1 key, the same
+kind Pocket and Ethereum wallets use, so there is no email or password; you pay
+in POKT or in EVM coins verified on chain.
 
 This repository publishes two things:
 
@@ -15,6 +16,7 @@ This repository publishes two things:
 
 | you are | read |
 |---|---|
+| asking a quick question | [faq.md](faq.md): short answers, each pointing to its page |
 | new to the console | [index.md](index.md): accounts, balances, tokens, endpoints |
 | using a browser | [console.md](console.md) |
 | using a terminal | [cli.md](cli.md) |
@@ -39,8 +41,14 @@ then check the signature before running anything. The release key is
 
 ```sh
 gpg --import release-key.asc
+gpg --fingerprint developer@pokt.foundation   # must show the fingerprint above
 gpg --verify SHA256SUMS.asc SHA256SUMS        # must say "Good signature"
 sha256sum -c SHA256SUMS --ignore-missing
 ```
 
 [cli.md](cli.md#install) has the full steps for every system.
+
+## Help
+
+Ask on the Pocket Network Discord, https://discord.gg/pocket-network.
+[faq.md](faq.md) says what to include, and what never to share.
