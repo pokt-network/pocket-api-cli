@@ -4,12 +4,12 @@ Short answers, each with the page that has the details.
 
 ## The account
 
-**What does "my account is a key" mean, and how do I get one?**
+**What does "my account is a secp256k1 key" mean, and how do I get one?**
 Your account is a secp256k1 key pair, the same kind Pocket and Ethereum
 wallets use. The public key is your account id; there is no sign-up, no email
 and no password, and the account exists the first time you use the key. Sign in
 to the console with a Pocket or EVM wallet, or run `budgetkitctl tools keygen`.
-See [index.md](index.md) "Your account is a key" and [cli.md](cli.md).
+See [index.md](index.md) "Your account is a secp256k1 key" and [cli.md](cli.md).
 
 **Can I reuse my MetaMask or Pocket wallet key?**
 Yes. In the console you sign in with the wallet and the key never leaves it.
@@ -113,8 +113,8 @@ API for your own code. [README.md](README.md) "Start here" picks the page.
 
 **Can an AI agent do everything without a human?**
 Yes, given coins to pay with. It also sets the deployment's target name,
-which every signed request carries: `beta` for beta, and the production name
-once production opens. [agents.md](agents.md) is its
+which every signed request carries: `beta` for beta, and the mainnet name
+once mainnet opens. [agents.md](agents.md) is its
 runbook.
 
 ## Security

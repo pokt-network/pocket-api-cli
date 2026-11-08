@@ -12,14 +12,14 @@ Notation: `<PLACEHOLDER>` is a value you supply. Response examples are labelled
 
 ## Where the API lives
 
-| what | production | beta |
+| what | mainnet | beta |
 |---|---|---|
 | The account API (every `/v1/...` route on this page) | `https://pay.api.pocket.network` | `https://pay.beta.api.pocket.network` |
 | Paid relays for a service | `https://<service>.api.pocket.network` | `https://<service>.beta.api.pocket.network` |
 | Free relays for a service (no token, rate limited) | `https://<service>.free.api.pocket.network` | `https://<service>.free.beta.api.pocket.network` |
 | Web console | `https://console.api.pocket.network` | `https://console.beta.api.pocket.network` |
 
-The examples below use the production names; on beta, add `beta.` before `api`.
+The examples below use the mainnet names; on beta, add `beta.` before `api`.
 
 Only the `pay.` host serves `/v1/`. A `/v1/` path sent to a service host is not
 an API call: it is relayed to that service like any other path. On the `pay.`
@@ -41,7 +41,7 @@ A request is authenticated in one of three ways, depending on the route:
 | **signed** | every other account route | an RFC 9421 HTTP Message Signature made with your account key (below) |
 | **session** | the same routes as **signed**, from a browser | a `Budget-Session` header carrying a token from `POST /v1/sessions` |
 
-### Your account is a key
+### Your account is a secp256k1 key
 
 Your account identifier (the **uid**) is a **compressed secp256k1 public key**,
 written as 66 hex characters (33 bytes; the first byte is `02` or `03`). For
@@ -76,7 +76,7 @@ over any other set does not verify.
 | `tag` | quoted; `budgetkit-v1:<target>` | which deployment the request is for. A request signed for another deployment is refused (api code 5) |
 
 The `<target>` is the deployment's target name: `beta` on beta, and the
-production name is published when production opens. Its format is `^[a-z0-9][a-z0-9_-]{0,63}$`.
+mainnet name is published when mainnet opens. Its format is `^[a-z0-9][a-z0-9_-]{0,63}$`.
 
 An `alg` parameter, any other parameter, a repeated parameter, a label other
 than `sig1`, or more than one signature is refused (api codes 10 to 34).

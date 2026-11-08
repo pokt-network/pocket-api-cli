@@ -51,7 +51,7 @@ a light/dark theme switch, and the sign-out button.
 
 Signing in does not ask your wallet to switch networks.
 
-**Your account is your key.** The same key has a Pocket address (`pokt1...`)
+**Your account is your secp256k1 key.** The same key has a Pocket address (`pokt1...`)
 and an EVM address (`0x...`), and both lead to the same account. Signing in with
 the Pocket account of a key or with its EVM account opens the same console.
 

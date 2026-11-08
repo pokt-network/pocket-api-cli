@@ -24,9 +24,9 @@ task, or from the published documentation; the rest are produced by the steps.
 
 | placeholder | what it is | where it comes from |
 |---|---|---|
-| `<API_URL>` | base URL of the account API | given. Production: `https://pay.api.pocket.network`. Beta: `https://pay.beta.api.pocket.network` |
-| `<TARGET>` | the target name every signature names | `beta` for beta; the production name is published when production opens. It has no default, and it must match `API_URL`: a wrong value gives api code 5 |
-| `<RELAY_DOMAIN>` | domain suffix for relays | `api.pocket.network` for production, `beta.api.pocket.network` for beta |
+| `<API_URL>` | base URL of the account API | given. Mainnet: `https://pay.api.pocket.network`. Beta: `https://pay.beta.api.pocket.network` |
+| `<TARGET>` | the target name every signature names | `beta` for beta; the mainnet name is published when mainnet opens. It has no default, and it must match `API_URL`: a wrong value gives api code 5 |
+| `<RELAY_DOMAIN>` | domain suffix for relays | `api.pocket.network` for mainnet, `beta.api.pocket.network` for beta |
 | `<KEY_FILE>` | path to your private key file | step A1 |
 | `<UID>` | your account id: 66 hex characters starting with `02` or `03` | step A1 |
 | `<SERVICE>` | a service name to relay to, e.g. `anvil` on beta | given (the deployment's published services) |
@@ -46,14 +46,14 @@ umask 077   # every file this runbook writes (key, token) is readable by you onl
 Facts you can rely on:
 
 - Money in the API is an **integer number of micro-USD** (1 USD = 1,000,000).
-- Your account is your key. There is no sign-up call: the account exists the
+- Your account is your secp256k1 key. There is no sign-up call: the account exists the
   first time you use the key.
 - Every signed request is valid for **300 seconds** from signing and **once**.
   The CLI signs fresh on every call. If you sign by hand, sign right before each
   call and never resend the same headers.
 - Your machine's clock must be within 300 seconds of real time. Check with
   `date -u`.
-- Beta and production are separate deployments: a key's balance, tokens and
+- Beta and mainnet are separate deployments: a key's balance, tokens and
   payments on one are not on the other.
 
 Tools used (install what your path needs):

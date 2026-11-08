@@ -26,7 +26,7 @@ This repository publishes two things:
 
 ## Endpoints
 
-| what | production | beta |
+| what | mainnet | beta |
 |---|---|---|
 | Web console | https://console.api.pocket.network | https://console.beta.api.pocket.network |
 | Paid requests, with a token | `https://<service>.api.pocket.network` | `https://<service>.beta.api.pocket.network` |

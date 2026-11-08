@@ -19,7 +19,7 @@ Other pages:
 
 ---
 
-## Your account is a key
+## Your account is a secp256k1 key
 
 You do not sign up with an email or a password. Your account is a
 **cryptographic key pair** (secp256k1, the same kind of key Pocket and Ethereum
@@ -99,7 +99,7 @@ All tokens draw from the same account balance.
 
 ## Where to send requests
 
-Production:
+Mainnet:
 
 | what | address |
 |---|---|
@@ -131,8 +131,8 @@ than a deployment serves: on beta, only the two above answer.
 The free tier on beta allows 100 requests per minute per client IP address, and
 serves no WebSocket.
 
-**Beta and production are separate deployments** with separate databases. A key
-works on both, but its beta balance, tokens and payments are not its production
+**Beta and mainnet are separate deployments** with separate databases. A key
+works on both, but its beta balance, tokens and payments are not its mainnet
 ones. Every signed request names the deployment it is for, so a request signed
 for one is refused by the other.
 

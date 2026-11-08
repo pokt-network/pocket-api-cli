@@ -61,7 +61,7 @@ Every `user` command takes these flags:
 
 | flag | meaning |
 |---|---|
-| `-url` | **required**: base URL of the account API. Production: `https://pay.api.pocket.network`. Beta: `https://pay.beta.api.pocket.network` |
+| `-url` | **required**: base URL of the account API. Mainnet: `https://pay.api.pocket.network`. Beta: `https://pay.beta.api.pocket.network` |
 | `-key` | **required** (every command except `logout`): your private key file |
 | `-host` | overrides the HTTP `Host` header sent to `-url`; defaults to `$CONTROL_HOST`. Leave it empty on the published deployments, whose names resolve |
 
@@ -76,8 +76,8 @@ And one environment variable:
 | `BUDGETKIT_TARGET` | the target name of the deployment your requests are signed for. **It has no default.** Every command that signs refuses to run without it: `no target: a signed request names the deployment it is for (-target, or BUDGETKIT_TARGET). Without it the request is signed for nobody` |
 
 Each deployment has its own target name: `beta` for beta
-(`https://pay.beta.api.pocket.network`); the production name is published when
-production opens. A request signed for another
+(`https://pay.beta.api.pocket.network`); the mainnet name is published when
+mainnet opens. A request signed for another
 deployment is refused (`401`, api code 5), so set `BUDGETKIT_TARGET` to match
 `-url`.
 
