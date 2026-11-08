@@ -47,6 +47,10 @@ install -m 0755 budgetkitctl_<version>_linux_amd64 /usr/local/bin/budgetkitctl
 budgetkitctl version                          # prints: budgetkitctl <version>
 ```
 
+`gpg --verify` also prints `WARNING: This key is not certified with a trusted
+signature!`. That is expected: it means you have not signed the key yourself,
+and the fingerprint check above is what establishes that the key is ours.
+
 On macOS use `shasum -a 256 -c SHA256SUMS --ignore-missing`.
 
 ---

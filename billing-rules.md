@@ -41,6 +41,8 @@ decided whole: if any coin in it cannot be credited, none of it is.
 | Payments to us in one transaction come from two different senders | `rejected`, `two_senders` | One sender per transaction |
 | The coin has no price at the moment of the credit | `rejected`, `no_price` | Notify the hash again later: your notice reopens it |
 | The amount is worth less than one micro-dollar | `rejected`, `credit_zero` | Send more than that |
+| The amount is worth more than one credit can hold | `rejected`, `credit_overflow` | Pay in smaller amounts; this one can be returned, see [Returns](#returns) |
+| You sent on a network the Fund page does not list for that coin | nothing is recorded: we read only the listed networks | Pay on a listed network; for the coins already sent, see [Returns](#returns) |
 | ETH reached us from a balance other than your account's: a Safe or other contract wallet, a vault or exchange withdrawal, a faucet, a swap paying out ETH | `rejected`, `not_the_sender` | Send ETH from your own account. The money stays in our wallet; it can be returned, see [Returns](#returns) |
 | ETH reached us in a transaction funded by two or more addresses (your value sent elsewhere while somebody else paid us, a third party paying anybody), or in which a `SELFDESTRUCT` runs | `rejected`, `unattributable` | Send plain ETH from your own account, or through a contract funded only by that send, or pay in a token. It can be returned, see [Returns](#returns) |
 | A message of another module that only looks like a transfer (not the bank module's) | not counted | Use a plain bank send |

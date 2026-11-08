@@ -125,6 +125,9 @@ the services are:
 | `anvil` | an EVM chain: JSON-RPC over HTTP and WebSocket |
 | `pocket` | the Pocket beta chain (`pocket-lego-testnet`): Cosmos REST, CometBFT RPC and WebSocket |
 
+`GET /v1/prices` lists every service the Pocket chain prices, which is more
+than a deployment serves: on beta, only the two above answer.
+
 The free tier on beta allows 100 requests per minute per client IP address, and
 serves no WebSocket.
 

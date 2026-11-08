@@ -220,7 +220,7 @@ protocol's request.
 | status | meaning | do |
 |---|---|---|
 | `200` with a JSON-RPC `result` | **success**: the relay was served and charged to your account | continue |
-| `402`, body `error` = `payment required: this request carries no token of a known account` | the token has not reached the relay hosts yet, or it is wrong or revoked | wait 5 s and retry, up to 1 minute; if it persists, check `TOKEN` |
+| `402`, body `error` = `payment required: this request carries no token of a known account` | the token has not reached the relay hosts yet, or it is wrong or revoked (all three give the same answer) | if you minted it in the last minute, wait 5 s and retry, up to 1 minute; otherwise check `TOKEN`, and that it was not revoked |
 | `402`, body `error` = `payment required: this account has no balance left` | your account is out of money | do steps A6 to A10 (pay), then retry |
 | `429` | over your tier's rate limit, or too many requests from your address | wait the `Retry-After` seconds, retry |
 | `503` with `Retry-After: 1` | the rate limiter could not decide | retry after 1 s |
@@ -237,7 +237,9 @@ service (under its Pocket service id) with `count` > 0 appears once the relays
 have been reported, normally within seconds; if it is not there yet, wait and
 retry. `cost_micro_usd` is a whole number of micro-USD: each charge is the floor
 of the running exact total, and the fraction is carried to the next charge
-rather than lost.
+rather than lost. One request can cost less than one micro-USD, so after a few
+requests `cost_micro_usd` can still read `0`, and a trial balance unchanged,
+while `count` grows: that is not a failure.
 
 A `402` body carries everything needed to pay (shape):
 
@@ -447,6 +449,17 @@ is `paid`. Relays (step A5) now succeed even when the trial is used up.
 
 ---
 
+### A11. Revoke the token when you are done
+
+```sh
+budgetkitctl user tokens revoke -key "$KEY_FILE" -url "$API_URL" -id "$(jq -r .id ./bk/token.json)"
+```
+
+Success: `revoked tok_<hex> — relays carrying it are refused from the next token
+notice`. A token notice is the message that tells every relay host about the
+change; it normally arrives within seconds. After it, a relay with `TOKEN` gets
+`402` with `payment required: this request carries no token of a known account`.
+
 ## Path B: raw HTTP, signing by hand
 
 Use this when `budgetkitctl` cannot run. You sign each request with the program
@@ -637,3 +650,4 @@ Receipt `reason_code` values 15 to 27 are the rejection reasons in step A10.
 4. A relay to `https://<SERVICE>.<RELAY_DOMAIN>/` with `Authorization: Bearer <TOKEN>` returned `200`.
 5. The payment receipt reached `"status":"credited"`, and the balance afterwards
    shows `credit_micro_usd` increased by `credited_micro_usd` and `tier` `paid`.
+6. After A11, a relay with the revoked token returned `402`.
