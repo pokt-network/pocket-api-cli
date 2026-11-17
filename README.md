@@ -1,9 +1,17 @@
-# Pocket API Console: CLI and documentation
+# Pocket API: CLI and documentation
 
-Paid, metered access to the services Pocket Network serves: blockchain RPC and
-the other APIs the deployment lists. Your account is a secp256k1 key, the same
-kind Pocket and Ethereum wallets use, so there is no email or password; you pay
-in POKT or in EVM coins verified on chain.
+Access to the services Pocket Network serves: blockchain RPC and the other APIs
+the deployment lists. There are three products:
+
+- **Pocket API Free**: the free domain, no account and no token, at lower rate
+  limits.
+- **Pocket API Pro**: the Pro domain, metered and paid from your account, with
+  an API token.
+- **Pocket API Console**: the web console where you manage that account.
+
+Your account is a secp256k1 key, the same kind Pocket and Ethereum wallets use,
+so there is no email or password; you pay in POKT or in EVM coins verified on
+chain.
 
 This repository publishes two things:
 
@@ -17,10 +25,11 @@ This repository publishes two things:
 | you are | read |
 |---|---|
 | asking a quick question | [faq.md](faq.md): short answers, each pointing to its page |
-| new to the console | [index.md](index.md): accounts, balances, tokens, endpoints |
+| new to Pocket API | [index.md](index.md): accounts, balances, tokens, endpoints |
 | using a browser | [console.md](console.md) |
 | using a terminal | [cli.md](cli.md) |
-| writing code against the API | [api.md](api.md): request signing, relays, error codes |
+| sending your first relay over HTTP, WebSocket, gRPC or SSE | [protocols.md](protocols.md): one copy-paste example per protocol |
+| writing code against the API | [api.md](api.md): request signing, relays, where the token goes (header, path, browser WebSocket), per-token allowlists, error codes |
 | an AI agent, or automating it | [agents.md](agents.md): one runbook, every command in order |
 | paying | [billing-rules.md](billing-rules.md): which payments are credited |
 
@@ -28,9 +37,9 @@ This repository publishes two things:
 
 | what | mainnet | beta |
 |---|---|---|
-| Web console | https://console.api.pocket.network | https://console.beta.api.pocket.network |
-| Paid requests, with a token | `https://<service>.api.pocket.network` | `https://<service>.beta.api.pocket.network` |
-| Free requests, no token | `https://<service>.free.api.pocket.network` | `https://<service>.free.beta.api.pocket.network` |
+| Pocket API Console | https://console.api.pocket.network | https://console.beta.api.pocket.network |
+| Pocket API Pro: requests with a token | `https://<service>.pro.api.pocket.network` | `https://<service>.pro.beta.api.pocket.network` |
+| Pocket API Free: requests with no token | `https://<service>.api.pocket.network` | `https://<service>.beta.api.pocket.network` |
 
 ## Install the CLI
 

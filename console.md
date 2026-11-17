@@ -124,27 +124,43 @@ habit).
 
 **Mint a token.** Type a name (for example "production backend"), choose how
 long it lives (**Never expires**, **Expires in 7 days**, **Expires in 30
-days**, **Expires in 90 days** or **Expires in 1 year**), and click **Mint
-token**. Your wallet asks you to sign a short message naming the token: a token
+days**, **Expires in 90 days** or **Expires in 1 year**), optionally fill in
+**Allowed origins** and **Allowed IPs** (one per line or comma; empty means
+any), and click **Mint token**. Your wallet asks you to sign a short message naming the token: a token
 outlives your session, so minting needs a fresh signature. A dialog then shows
 the token:
 
 - **Copy it now.** It is shown once. The server keeps only a fingerprint (hash)
   of it and cannot show it again. If you lose it, mint another.
-- Use it in your app as the header `Authorization: Bearer <token>` on the paid
-  domain, `https://<service>.api.pocket.network`.
+- Use it in your app as the header `Authorization: Bearer <token>` on the Pro
+  domain, `https://<service>.pro.api.pocket.network`.
 - Click **I have saved it** to close the dialog.
 
-An account holds at most a fixed number of live tokens (100 unless the
-deployment sets another number). At the limit the console says "This account
+The deployment sets a limit on live tokens per account. At the limit the
+console says "This account
 already holds its maximum of live tokens. Revoke one to mint another."
 
-**Your tokens** are listed with **Id**, **Name**, **Created**, **Expires** and
-**State**: **live**, **expired** or **revoked**.
+**Your tokens** are listed with **Id**, **Name**, **Created**, **Expires**,
+**State** (**live**, **expired** or **revoked**) and **Allowed from**, which
+shows the token's origins and IPs, or **any**. When a token expires, its open
+WebSocket, gRPC and streaming sessions are closed.
+
+**Edit a token's allowlists.** Click **Edit** on a live token, change the
+**Allowed origins** and **Allowed IPs**, click **Save allowlists**, and sign
+the message your wallet shows. It spells both lists, because clearing one lets
+the token be used from anywhere. Both lists are replaced: a field left empty
+means any origin, or any address. The token's open sessions that the new lists
+no longer allow are closed. What the lists protect against, and what they do
+not, is in [api.md](api.md) "Per-token allowlists".
 
 **Revoke a token.** Click **Revoke** on a live token, confirm, and sign the
 message your wallet shows. Requests carrying that token stop being accepted
-within seconds. This cannot be undone; mint a new token to replace it.
+within seconds, and its open WebSocket, gRPC and streaming sessions are closed.
+This cannot be undone; mint a new token to replace it.
+
+**Rotate a token.** Mint the new token first, move your apps to it, then revoke
+the old one, so nothing stops in between: see [index.md](index.md) "Rotating a
+token".
 
 ---
 
@@ -159,10 +175,19 @@ credited). Only coins the service can price right now are listed. Each
 receiving wallet has a copy button and a QR code of the address, for paying
 from another app.
 
-**Bonus.** Some coins earn extra credit. When one does, the page says so at the
-top, for example "Pay in POKT and get +20% more credit." A +20% bonus means a
-payment worth $10 is credited as $12. The page always shows the bonuses in
-force.
+**The price of a request.** Above the table the page says what a billion
+compute units cost at Pocket's CU peg, and the price with the Pocket API Pro
+service fee, read from the service's price list
+(`https://pay.api.pocket.network/v1/prices`). A billion compute units cost that
+whatever POKT trades at. The POKT row's
+**Rate** is marked "the peg rate": a POKT payment is credited at the same rate
+requests are charged at, not at the exchange price.
+
+**Bonus.** Some coins earn extra credit; we usually offer a bonus when you pay
+in POKT. When a coin earns one, the page says so at the top, for example "Pay
+in POKT and get +<bonus>% more credit." A bonus of `<bonus>`% means a payment
+is credited at its value plus `<bonus>`% of it. The page always shows the
+bonuses in force.
 
 **Paying from the connected wallet:**
 
@@ -208,7 +233,7 @@ other accounts are never shown to you.
 | **credited** | done: the money is in your Credit pool |
 | rejected | not a valid payment; the **Reason** column says why |
 | reorged | the block holding it disappeared from the chain |
-| not found | the chain never showed the transaction (24 hours after the notice, unless the deployment sets another time) |
+| not found | the chain never showed the transaction within a waiting time set by the deployment, counted from the notice |
 
 The **Reason** column shows the sentence the service gives, for example:
 

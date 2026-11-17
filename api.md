@@ -1,7 +1,7 @@
 # HTTP API reference
 
-This page is for developers who call the Pocket API Console's account API
-directly, without the `budgetkitctl` CLI or the web console. It covers how to
+This page is for developers who call the Pocket API account API directly,
+without the `budgetkitctl` CLI or the Pocket API Console. It covers how to
 authenticate, every route a customer can call, the error codes, how relays are
 billed and refused, and how to pay.
 
@@ -15,9 +15,9 @@ Notation: `<PLACEHOLDER>` is a value you supply. Response examples are labelled
 | what | mainnet | beta |
 |---|---|---|
 | The account API (every `/v1/...` route on this page) | `https://pay.api.pocket.network` | `https://pay.beta.api.pocket.network` |
-| Paid relays for a service | `https://<service>.api.pocket.network` | `https://<service>.beta.api.pocket.network` |
-| Free relays for a service (no token, rate limited) | `https://<service>.free.api.pocket.network` | `https://<service>.free.beta.api.pocket.network` |
-| Web console | `https://console.api.pocket.network` | `https://console.beta.api.pocket.network` |
+| Pocket API Pro: relays for a service, with a token | `https://<service>.pro.api.pocket.network` | `https://<service>.pro.beta.api.pocket.network` |
+| Pocket API Free: relays for a service (no token, rate limited) | `https://<service>.api.pocket.network` | `https://<service>.beta.api.pocket.network` |
+| Pocket API Console | `https://console.api.pocket.network` | `https://console.beta.api.pocket.network` |
 
 The examples below use the mainnet names; on beta, add `beta.` before `api`.
 
@@ -120,8 +120,8 @@ than `sig1`, or more than one signature is refused (api codes 10 to 34).
 
 **Replay and retry rules**
 
-- Each nonce is accepted once. The server keeps spent nonces for 600 seconds
-  (twice the window). Re-sending the same signed request is refused with
+- Each nonce is accepted once. The server keeps spent nonces for 601 seconds
+  (twice the window, and one second). Re-sending the same signed request is refused with
   `401` (api code 4).
 - If an answer is lost (timeout, dropped connection), the request may have been
   processed. Sign the request again with a **new nonce** before retrying. A
@@ -323,8 +323,8 @@ Response `200` (**shape**):
 { "token": "v1.<claims>.<signature>", "uid": "<uid>", "expires_at": "<RFC 3339 time>" }
 ```
 
-A session lasts 8 hours unless the deployment sets another length (between 10
-minutes and 7 days). Send it as `Budget-Session: <token>` on any **signed**
+A session lasts as long as the deployment sets; `expires_at` in the answer says
+when it ends. Send it as `Budget-Session: <token>` on any **signed**
 route below; it works on no other route. If a request carries a
 `Signature-Input` or `Signature` header, it is judged as a signed request and
 the session header is ignored.
@@ -334,8 +334,12 @@ token outlives the session, so `POST /v1/tokens` and `DELETE /v1/tokens/{id}`
 under a session carry a `proof` object in their body: the same four fields as
 `POST /v1/sessions`, over a new sign-in text whose statement line is
 `Mint the API token "<name>"` or `Revoke the API token "<id>"`, signed by the
-session's own key. A missing or refused proof is `403` (api codes 95 and 96);
-the session itself stays valid. A signed request needs no proof.
+session's own key. Replacing a token's allowlists under a session needs one
+too, whose statement spells both lists exactly as the body carries them, joined
+by `, ` and `[]` when empty:
+`Set the allowlists of the API token "<id>": origins [<o1>, <o2>], IPs [<ip1>]`.
+A missing or refused proof is `403` (api codes 95 and 96); the session itself
+stays valid. A signed request needs no proof.
 
 **`DELETE /v1/sessions/current`**: authenticated by the `Budget-Session` header
 only (a signature is not accepted). Ends that session and answers `204` with no
@@ -373,7 +377,9 @@ SHA-256 hash. A token's id is `tok_` followed by 16 hex characters.
 | field | type | meaning |
 |---|---|---|
 | `name` | string, up to 128 characters | your own label; not interpreted, not unique |
-| `expires_at` | string, RFC 3339 time | when the token stops working. Omit for a token that never expires |
+| `expires_at` | string, RFC 3339 time | when the token stops working, and its open sessions are closed ([Open sessions end with the token](#open-sessions-end-with-the-token)). Omit for a token that never expires |
+| `allowed_origins` | array of strings, up to 32 | the browser origins the token may be used from ([Per-token allowlists](#per-token-allowlists)). Omit, or `[]`, for any origin |
+| `allowed_ips` | array of strings, up to 32 | the client addresses or CIDR networks the token may be used from. Omit, or `[]`, for any address |
 
 - Response `201` (**shape**):
 
@@ -382,8 +388,9 @@ SHA-256 hash. A token's id is `tok_` followed by 16 hex characters.
 ```
 
 - Errors: `409` api 79 when the account already holds its maximum of live
-  tokens (100 unless the deployment sets another number; revoke one to mint
-  another), `400` api 3 or 45 for a bad body, `500` api 46.
+  tokens (the deployment sets a limit on live tokens per account; revoke one to
+  mint another), `400` api 3 or 45 for a bad body, `400` api 101, 102 or 103 for a
+  bad allowlist entry or a list too long, `500` api 46.
 
 ```sh
 BODY='{"name":"backend"}'
@@ -402,20 +409,44 @@ exact `BODY`.
 - Response `200`: a JSON **array** (**shape**):
 
 ```json
-[ { "id": "tok_<hex>", "name": "<name>", "created_at": "<time>", "expires_at": "<time>", "revoked_at": "<time>" } ]
+[ { "id": "tok_<hex>", "name": "<name>", "created_at": "<time>", "expires_at": "<time>", "revoked_at": "<time>",
+    "allowed_origins": ["https://app.example.com"], "allowed_ips": [] } ]
 ```
 
-`name`, `expires_at` and `revoked_at` are omitted when empty. It never contains
-a token's plaintext or hash.
+`name`, `expires_at` and `revoked_at` are omitted when empty. `allowed_origins`
+and `allowed_ips` are always present, `[]` when unrestricted, each entry in the
+form the server stored ([Per-token allowlists](#per-token-allowlists)). It
+never contains a token's plaintext or hash.
 
 - Errors: `500` api 47.
+
+#### `PUT /v1/tokens/{id}/allowlists`: set a token's allowlists
+
+- Auth: signed. Under a session, also a `proof` whose statement spells both
+  lists ([Browser sessions](#browser-sessions)). `{id}` is the `tok_...` id.
+- Body: **both lists are required, and both are replaced.** `[]` makes a list
+  unrestricted; a missing key or `null` is refused, so an edit cannot clear a
+  list by accident.
+
+```json
+{ "allowed_origins": ["https://app.example.com"], "allowed_ips": ["203.0.113.0/24"] }
+```
+
+- Response `200`: the token as `GET /v1/tokens` lists it, with the lists as
+  stored. The relay hosts apply the new lists normally within seconds, and the
+  token's open WebSocket, gRPC and streaming sessions whose caller the new
+  lists no longer allow are closed.
+- Errors: `400` api 3 for a missing list or `null`, `400` api 101, 102 or 103
+  for a bad entry or a list too long, `404` api 49 for an id that is unknown,
+  revoked or not yours, `500` api 104.
 
 #### `DELETE /v1/tokens/{id}`: revoke a token
 
 - Auth: signed, with no body. Under a session, the body carries a `proof`.
   `{id}` is the `tok_...` id.
 - Response `204`, no body. Relays carrying the token are refused once the
-  revocation reaches the relay hosts, normally within seconds.
+  revocation reaches the relay hosts, normally within seconds, and the token's
+  open WebSocket, gRPC and streaming sessions are closed.
 - Errors: `404` api 49 for an id that is unknown or not yours (the two are not
   told apart), `500` api 48.
 
@@ -438,13 +469,15 @@ a token's plaintext or hash.
   "low_services": ["<service>"],
   "has_plan": false,
   "next_trial_reset_at": "<time, optional>",
+  "trial_refills_left": "<integer, optional>",
   "next_plan_refill_at": "<time, optional>"
 }
 ```
 
 | field | meaning |
 |---|---|
-| `trial_micro_usd` | the daily trial pool; refills at `next_trial_reset_at` |
+| `trial_micro_usd` | the daily trial pool; refills at `next_trial_reset_at`, to the deployment's daily amount (it never accumulates) |
+| `trial_refills_left` | present when the deployment caps trial refills, or once a cap has disabled the account's trial: how many are left. At `0` no refill remains and `next_trial_reset_at` is absent; at the next boundary the trial pool goes to `0` and the account has no more trial |
 | `plan_micro_usd` | the plan pool; refills at `next_plan_refill_at` while `has_plan` is true |
 | `credit_micro_usd` | money you paid in; never expires |
 | `spendable_micro_usd` | the sum of the three pools |
@@ -550,6 +583,7 @@ curl -sS "https://pay.api.pocket.network/v1/events?limit=50" -H @headers.txt
 {
   "version": "<integer as string>",
   "markup_bps": 0,
+  "peg_micro_usd_per_billion_cu": 0,
   "settlement": "<chain/asset>",
   "params": { "cuttm": 0, "granularity": 0, "source": "<source>", "level": "<level>", "block_height": 0, "observed_at": "<time>" },
   "services": [
@@ -575,8 +609,15 @@ denominator can exceed what a JSON number holds exactly. `numerator: "0"` means
 free on purpose; empty strings (and the decimal `"unpriceable"`) mean the
 service cannot be priced. The price is
 `cu_per_relay x cuttm / granularity` upokt, valued at the POKT entry of
-`assets` (`rate_micro_usd` per whole coin of `decimals` places), plus
-`markup_bps`.
+`assets` (`rate_micro_usd` per whole coin of `decimals` places), plus the
+Pocket API Pro service fee. `markup_bps` is that service fee in basis points.
+
+`peg_micro_usd_per_billion_cu` is the CU peg the price comes from: what one
+billion compute units cost before the service fee. The POKT entry
+of `assets` is not a market quote: its `source` is `peg` and its rate is
+`peg_micro_usd_per_billion_cu x granularity / (1000 x cuttm)`, rounded down, so
+a relay costs `cu_per_relay x peg_micro_usd_per_billion_cu / 10^9` micro-USD plus
+the service fee, whatever POKT trades at.
 
 - Errors: `503` api 65 (no price loaded yet).
 
@@ -617,7 +658,7 @@ curl -sS "https://pay.api.pocket.network/v1/prices"
 | `wallet` | where to send it |
 | `contract` | for a token (e.g. an ERC-20), its contract address; absent for a chain's native coin |
 | `decimals` | base units per whole coin, as a power of ten (6 for POKT's `upokt`, 18 for ETH's wei) |
-| `bonus_bps` | extra credit in basis points: `2000` means a payment is credited at 120% of its value |
+| `bonus_bps` | extra credit in basis points: for example, `500` means a payment is credited at 105% of its value |
 | `min_confirmations` | blocks the payment must be buried under before it is credited |
 | `kind` | `evm` or `cosmos`: which kind of chain, and so which wallet |
 | `chain_id` | the chain the payment must be sent on, as it names itself: decimal for EVM (`"84532"`), a string for cosmos (`"pocket-lego-testnet"`). Check your wallet or RPC is on it before sending |
@@ -709,7 +750,7 @@ Receipt (**shape**; the two read routes below return the same object):
 | `credited` | the credit landed in your account | **yes, success** |
 | `rejected` | not a valid payment to us; see `reason` | yes, except the reasons a new notice reopens ([billing-rules.md](billing-rules.md)) |
 | `reorged` | its block disappeared and the transaction did not come back | until notified again: a new notice reopens it |
-| `not_found` | the chain never showed it within 24 hours of the notice (unless the deployment sets another time) | until notified again: a new notice reopens it |
+| `not_found` | the chain never showed it within a waiting time set by the deployment, counted from the notice | until notified again: a new notice reopens it |
 
 `coins` appears once the chain has been read. `credited_micro_usd`,
 `amount_micro_usd` and `bonus_bps` are zero until the coin is credited; then
@@ -819,6 +860,15 @@ Codes a customer can receive:
 | 98 | 400 | bad request: a quote takes chain, asset and exactly one of amount (a positive integer of base units) or usd (a positive decimal of at most 6 places) | fix the query |
 | 99 | 404 | not found: that coin is not offered on that chain right now | use a row of the payment options |
 | 100 | 422 | unprocessable: that amount cannot be quoted exactly: it is past what can be represented, or no amount of the coin is worth exactly those dollars | quote another amount |
+| 101 | 400 | bad request: an allowed origin must be http://host[:port], https://host[:port] or a browser extension's `chrome-extension://<id>`, `moz-extension://<uuid>` or `safari-web-extension://<uuid>` (a WebSocket page sends its page's origin, not ws:// or wss://), with an ASCII host (punycode, xn--..., for an international name), an IPv4 host in dotted decimal (127.0.0.1, not 127.1), no wildcard, no path, query or fragment, and not null | fix the origin ([Per-token allowlists](#per-token-allowlists)) |
+| 102 | 400 | bad request: an allowed IP must be an address or a network in CIDR form with no host bits set | fix the entry, e.g. `203.0.113.0/24` rather than `203.0.113.7/24` |
+| 103 | 400 | bad request: an allowlist holds more entries than a token may carry | send at most 32 entries per list |
+| 104 | 500 | the token's allowlists could not be saved | list tokens, then retry |
+| 105 | 400 | bad request: the request carries two different relay tokens; send one token, in one place | send one token ([Where the token goes](#where-the-token-goes)) |
+| 106 | 400 | bad request: a WebSocket carrying its token in Sec-WebSocket-Protocol must offer pocket beside it | offer `["pocket", token]` |
+| 107 | 403 | forbidden: this token does not allow requests from this origin | use the token from an allowed origin, or edit its allowlists |
+| 108 | 403 | forbidden: this token does not allow requests from this address | use the token from an allowed address, or edit its allowlists |
+| 109 | 400 | bad request: a request asking for a protocol switch must be a WebSocket handshake: GET, no body, Upgrade: websocket | send a plain request without `Upgrade`/`Connection: Upgrade`, or a real WebSocket handshake |
 
 ### payments codespace
 
@@ -855,32 +905,161 @@ These appear only in receipts, with the matching `reason` constant:
 | 20 | `two_senders` | the transaction pays our wallet from more than one account; a payment has one payer |
 | 21 | `no_price` | the payment could not be priced; notify it again later |
 | 22 | `credit_zero` | the payment is worth less than the smallest amount credited, so nothing was credited |
-| 23 | `credit_overflow` | the payment is worth more than one credit can hold, so nothing was credited; it can be returned ([billing-rules.md](billing-rules.md#returns)) |
+| 23 | `credit_overflow` | the payment is worth more than one credit can hold, so nothing was credited; to claim it, open a ticket on the Pocket Network Discord, https://discord.gg/pocket-network (Returns: https://github.com/pokt-network/pocket-api-cli/blob/main/billing-rules.md#returns) |
 | 25 | `raw_too_large` | the chain refused raw_tx as too large; once the transaction is on chain, notify its tx_hash |
-| 27 | `unattributable` | no single account funded the coin that reached our wallet, so nothing was credited; it can be returned ([billing-rules.md](billing-rules.md#returns)) |
+| 27 | `unattributable` | no single account funded the coin that reached our wallet, so nothing was credited; to claim it, open a ticket on the Pocket Network Discord, https://discord.gg/pocket-network (Returns: https://github.com/pokt-network/pocket-api-cli/blob/main/billing-rules.md#returns) |
 
 ---
 
 ## Relays
 
-Send your application's requests to `https://<service>.api.pocket.network`
+Send your application's requests to `https://<service>.pro.api.pocket.network`
 with your token in the standard bearer header:
 
 ```
 Authorization: Bearer pkt_<...>
 ```
 
-The scheme name is case-insensitive. Any other `Authorization` scheme, or a
-token anywhere else (a query parameter, another header), is treated as no
-token. The request body and path are whatever the service speaks; for an EVM
-JSON-RPC service such as `anvil` on beta:
+The scheme name is case-insensitive. The request body and path are whatever
+the service speaks; for an EVM JSON-RPC service such as `anvil` on beta:
 
 ```sh
-curl -sS -X POST "https://anvil.beta.api.pocket.network/" \
+curl -sS -X POST "https://anvil.pro.beta.api.pocket.network/" \
   -H "Authorization: Bearer <TOKEN>" \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}'
 ```
+
+One copy-paste example per protocol (HTTP, WebSocket, gRPC, server-sent
+events) is in [protocols.md](protocols.md).
+
+### Where the token goes
+
+The token is read from three places, and the header is the one to prefer.
+
+1. **The `Authorization: Bearer` header. Always prefer it.** A header does not
+   end up where a URL does.
+2. **The first segment of the path**, for a client that cannot set a header:
+
+   ```
+   https://<service>.pro.api.pocket.network/pkt_<...>/<the service's own path>
+   ```
+
+   This is the easiest way, and **the least secure one**. A URL is written
+   down in places a header is not: proxy, CDN and server access logs, browser
+   history, bookmarks, crash reports, and screenshots of a terminal or an
+   address bar. Anyone who reads it there can spend your account until you
+   revoke the token. Use it only when nothing else works, give such a token
+   its own name and a short expiry, restrict it with allowlists
+   ([Per-token allowlists](#per-token-allowlists)), and revoke it as soon as
+   you suspect it was seen. The segment is removed before the request reaches
+   the service, so `https://anvil.pro.beta.api.pocket.network/pkt_<...>/` reaches
+   it as `/`, and `/pkt_<...>/cosmos/bank/v1beta1/balances` as
+   `/cosmos/bank/v1beta1/balances`. Only a first segment starting with `pkt_`
+   is read; a `pkt_` segment that is not a live token is answered like an
+   unknown token, with `402`.
+3. **A WebSocket subprotocol**, for a browser: the browser's `WebSocket` API
+   cannot set a header, but it can offer subprotocols. Offer `pocket` and your
+   token:
+
+   ```js
+   const ws = new WebSocket("wss://anvil.pro.beta.api.pocket.network/", ["pocket", token]);
+   ```
+
+   The upgrade is answered `Sec-WebSocket-Protocol: pocket`. The token is
+   **never echoed** in a response header, and neither entry reaches the
+   service. If you also offer a protocol the service speaks (for example
+   `graphql-ws`), that one is passed on and the answer names the service's
+   choice. Offering the token without `pocket` is refused with `400` (api code
+   106), because a browser refuses an upgrade whose answer names none of the
+   protocols it offered. A token in a subprotocol is still visible to the
+   page's own scripts, so an allowlist of origins is worth setting for it.
+
+A request that carries **two different tokens** (a header and a path, say) is
+refused with `400` (api code 105) and nothing is billed; the same token in two
+places is fine. Any other `Authorization` scheme, or a token anywhere else (a
+query parameter, another header), is treated as no token. The free endpoint
+reads no token: one in the path or in a subprotocol is removed and not used.
+
+### Per-token allowlists
+
+A token can be restricted to the browser origins and the client addresses it
+may be used from: `allowed_origins` and `allowed_ips`, set when it is minted
+([`POST /v1/tokens`](#post-v1tokens-mint-a-token)) and replaced at any time
+([`PUT /v1/tokens/{id}/allowlists`](#put-v1tokensidallowlists-set-a-tokens-allowlists)).
+An empty list restricts nothing, and a token minted without lists is
+unrestricted. Each list holds up to 32 entries.
+
+- **Origins.** Each entry is `http://host[:port]` or `https://host[:port]`,
+  or a browser extension's origin, with no path, query or fragment, and never
+  `null`; a bad entry is `400` (api code 101). An extension's origin is its
+  scheme and its id with no port: `chrome-extension://<id>` (Chrome and other
+  Chromium browsers; the id is 32 letters a to p),
+  `moz-extension://<uuid>` (Firefox) or `safari-web-extension://<uuid>`
+  (Safari), stored in lower case. Other schemes are refused. A page that opens a WebSocket
+  sends its own origin, so list `https://app.example`, not
+  `wss://app.example`. There are no wildcards: list each origin. An IPv4 host
+  is written in dotted decimal (`http://127.0.0.1:8080`), the form a browser
+  sends; `127.1`, `0x7f.0.0.1`, `2130706433` and `010.0.0.1` are refused. It is
+  stored the way a browser sends it: scheme and host in lower case, the
+  default port (80 for `http`, 443 for `https`) dropped, an IPv6 address
+  compressed (`https://[0:0::1]:8443` is stored as `https://[::1]:8443`). The
+  host is written in ASCII, so an international name is given in its punycode
+  form (`https://xn--bcher-kva.example`, not `https://bücher.example`). A relay whose
+  `Origin` header is not in the list, has no `Origin` header, or is
+  `Origin: null`, is refused with `403` (api code 107).
+- **IPs.** Each entry is an address (`203.0.113.7`, stored as
+  `203.0.113.7/32`) or a network in CIDR form (`203.0.113.0/24`,
+  `2001:db8::/32`) with no host bits set; a bad entry is `400` (api code 102).
+  The address compared is the client's own, as the relay host reads it behind
+  the deployment's trusted proxies. A relay from outside the list is refused
+  with `403` (api code 108).
+
+**What an origin list protects against, and what it does not.** A browser sets
+the `Origin` header itself and a page's scripts cannot change it, so an origin
+list stops a token copied out of your web app from being used by **another web
+site** in somebody's browser. It does not stop a **server-side client**: curl
+or any program sends whatever `Origin` it likes. Treat an origin list as
+browser hygiene, and an IP list as the restriction that binds a server. A token
+your backend uses should carry no origin list, since a request with no `Origin`
+header is refused against a non-empty one.
+
+**Wallets.** A wallet extension such as MetaMask calls the RPC with its own
+extension origin, not the origin of the dapp page you are on, so list the
+extension's origin (for MetaMask in Chrome,
+`chrome-extension://nkbihfbeogaeaoehlefnkodbefgpgknn`). A mobile wallet sends no
+`Origin`, so a token with an origin list refuses it: give a token used from a
+mobile wallet no origin list, or an IP list instead.
+
+The allowlists are checked before the balance, so a refused caller learns
+nothing about the account. A list that is edited applies to new relays
+normally within seconds, and **an edit closes the token's open WebSocket,
+gRPC and streaming sessions whose caller the new lists no longer allow**; the
+others stay open.
+
+### Open sessions end with the token
+
+A WebSocket, a gRPC call or a streamed response that a token opened is closed
+when the token can no longer be used:
+
+- when the token is **revoked**;
+- at the token's **`expires_at`**;
+- when an **allowlist edit** no longer allows the session's caller.
+
+Every other session stays open, the token's other sessions included when only
+an edit cut one. What a session was served before it was closed stays billed:
+a WebSocket's delivered messages one each, and a gRPC call or a streamed
+response once.
+
+### Errors a browser can read
+
+Every error the relay host answers itself on the Pro and the free domains
+(`400`, `402`, `403`, `404`, `408`, `413`, `429`, `5xx`) carries
+`Access-Control-Allow-Origin: <your Origin>` and `Vary: Origin` when the
+request had an `Origin` header, so a web app can read the code and the reason
+instead of an opaque CORS failure. An answer from the service itself is passed
+through as the service wrote it. The rate-limit and tier headers are not
+exposed to a page's scripts.
 
 Which pool pays: the trial pool first, then the plan pool, then credit. While
 plan or credit money remains you are on the `paid` tier; on trial money alone,
@@ -910,11 +1089,11 @@ and on its own `429`.
   answered with a `2xx`.
 - **WebSocket**: one relay per data message the service sends you. Control
   frames, and the messages you send, are not billed. The token goes in the
-  `Authorization` header of the upgrade request, the one way it is read, so a
-  browser's WebSocket API, which cannot set that header, cannot open a paid
-  socket. When your balance reaches zero during a socket, the message that
-  spent it is billed and the socket is closed. Falling from the paid tier to the
-  trial tier does not close it.
+  `Authorization` header of the upgrade request, or for a browser in a
+  subprotocol beside `pocket` ([Where the token goes](#where-the-token-goes)).
+  When your balance reaches zero during a socket, the message that spent it is
+  billed and the socket is closed. Falling from the paid tier to the trial tier
+  does not close it.
 - **gRPC**: one relay per call, billed when it ends with status `OK`,
   `INVALID_ARGUMENT`, `NOT_FOUND`, `FAILED_PRECONDITION` or `OUT_OF_RANGE`.
 - **Streamed HTTP responses** (server-sent events): one relay per request.
@@ -922,7 +1101,7 @@ and on its own `429`.
 ### `402 Payment Required`
 
 When your account has nothing left in any pool, or the request carries no
-token of a known account, relays on the paid domain are refused with `402`
+token of a known account, relays on the Pro domain are refused with `402`
 (never `429`: waiting does not help). The response says how to pay and where the
 free endpoint is.
 
@@ -931,7 +1110,7 @@ Headers:
 ```
 WWW-Authenticate: budget options="https://pay.api.pocket.network/v1/payments/options"
 Link: <https://pay.api.pocket.network/v1/payments/options>; rel="payment"
-Link: <https://<service>.free.api.pocket.network>; rel="alternate"; title="free endpoint"
+Link: <https://<service>.api.pocket.network>; rel="alternate"; title="free endpoint"
 ```
 
 Body (**shape**; the text is in `error`, not `message`):
@@ -953,7 +1132,7 @@ Body (**shape**; the text is in `error`, not `message`):
     }
   ],
   "notify": "https://pay.api.pocket.network/v1/payments/notify",
-  "free_endpoint": "https://<service>.free.api.pocket.network"
+  "free_endpoint": "https://<service>.api.pocket.network"
 }
 ```
 
@@ -968,6 +1147,15 @@ Body (**shape**; the text is in `error`, not `message`):
 `accepts` is omitted when the relay host does not know the payment options yet;
 read `GET /v1/payments/options` then.
 
+On the free endpoint, a feature it does not serve (a WebSocket, a stream or
+gRPC) gets the same `402`, with `error` `payment required:
+<feature> on <service> is not served on the free domain; use the Pro endpoint`,
+a `Link: <https://<service>.pro.api.pocket.network>; rel="alternate";
+title="Pro endpoint"`, and that URL in the body as `paid_endpoint`.
+
+A gRPC call gets every refusal on this page as a gRPC status instead, because a
+gRPC client reads no HTTP body: see [protocols.md](protocols.md#grpc).
+
 ### Other relay refusals
 
 | answer | meaning |
@@ -975,19 +1163,35 @@ read `GET /v1/payments/options` then.
 | `429 Too Many Requests` with `Retry-After: <seconds>`, body `throttled` | you are over your tier's rate. Wait that long |
 | `429` with `Retry-After`, body `too many requests from this address` | too many requests from your IP address, whatever the account. Wait that long |
 | `503` with `Retry-After: 1` | the rate limiter could not decide. Retry |
-| `413` | the body or a JSON-RPC batch is larger than the deployment allows |
+| `413` | the body or a JSON-RPC batch is larger than the deployment allows, or, on the free endpoint, a batch has more calls than the whole rate window allows |
 | `404` with `{"error":"unknown service","service":"<name>"}` | the service is not served on this domain |
 | `421 Misdirected Request` with `{"error":"misdirected request: this process does not serve that Host"}` | the host name is not one of the deployment's domains |
 | `502` api 84 or 85 | the service did not answer, or refused the WebSocket upgrade |
+| `400` api 105 | the request carries two different tokens: send one, in one place |
+| `400` api 106 | a WebSocket offered its token as a subprotocol without `pocket` beside it |
+| `403` api 107 | the token's origin list does not allow this request's `Origin`, or the request has none |
+| `403` api 108 | the token's IP list does not allow the client's address |
+| `400` api 109 | the request carries `Upgrade` or `Connection: Upgrade` but is not a WebSocket handshake (a GET with no body naming `websocket`); it is billed as one relay and not forwarded |
 
 ### The free endpoint
 
-`https://<service>.free.api.pocket.network` serves relays without a token and
+`https://<service>.api.pocket.network` serves relays without a token and
 without charging, at its own rate limit, counted per client IP address. It
 serves no `/v1/` routes. A feature the free endpoint does not serve on a
-service is answered with a `402` whose `error` names the feature and says to use
-the paid endpoint. On beta the free limit is 100 requests per minute per client
-IP address, and WebSocket is not served.
+service is answered with a `402` whose `error` names the feature and points to
+the Pro endpoint. On beta, WebSocket is not served.
+
+The free rate limit is counted per client IP address and per service, and the
+deployment sets it. The `X-RateLimit-*` headers on a served request carry the
+limit in force ([Headers on a served relay](#headers-on-a-served-relay)). A
+request over the limit is refused with `429` and `Retry-After`, the seconds to
+wait.
+
+JSON-RPC batches over HTTP are served on the free endpoint. Each call in a
+batch takes one slot of the free rate limit, and the batch is admitted whole or
+refused whole. A batch with more calls than the whole window allows is refused
+with `413` before the window is consulted. A batch that fits the window but not
+what is left of it is refused with `429` and `Retry-After`.
 
 ---
 
@@ -1013,14 +1217,15 @@ IP address, and WebSocket is not served.
 
 **How a payment is valued.** At the moment of crediting, each coin is valued at
 the price in force for that coin, in micro-USD (rounded down), then the bonus is
-added: `credited = value x (10000 + bonus_bps) / 10000`. The receipt shows both
+added. For POKT the price in force is the peg rate of `GET /v1/prices`, the rate
+requests are charged at; every other coin's is its market price: `credited = value x (10000 + bonus_bps) / 10000`. The receipt shows both
 `amount_micro_usd` (the value) and `credited_micro_usd` (with the bonus). The
 bonus in force at crediting time applies; the options route always shows the
 current ones. `GET /v1/payments/quote` estimates it before you pay.
 
 **Confirmations.** A payment is credited after `min_confirmations` blocks.
 
-**Time limit.** If the server cannot find the transaction on chain within 24
-hours of the notice (unless the deployment sets another time), it becomes
+**Time limit.** If the server cannot find the transaction on chain within a
+waiting time set by the deployment, counted from the notice, it becomes
 `not_found`. Notifying the same transaction again reopens a `not_found` or
 `reorged` payment.

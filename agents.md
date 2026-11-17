@@ -1,4 +1,4 @@
-# Runbook for AI agents: use the Pocket API Console end to end
+# Runbook for AI agents: use Pocket API Pro end to end
 
 This page is written for an automated agent with a shell. Follow the steps in
 order. Every placeholder in `<ANGLE_BRACKETS>` is named in the table below with
@@ -164,9 +164,9 @@ Errors here:
 
 ### A3. Choose a service
 
-The service is named in the relay address: `https://<SERVICE>.<RELAY_DOMAIN>/`.
+The service is named in the relay address: `https://<SERVICE>.pro.<RELAY_DOMAIN>/`.
 On beta the services are `anvil` (an EVM chain, JSON-RPC) and `pocket` (the
-Pocket beta chain: Cosmos REST and CometBFT RPC). For the relay example in step
+Pocket beta chain: Cosmos REST, CometBFT RPC, WebSocket, gRPC and gRPC-Web). For the relay example in step
 A5, use `anvil`.
 
 ```sh
@@ -195,7 +195,15 @@ Success: exit 0 and one JSON object (shape):
 
 Check: `TOKEN` starts with `pkt_`. **This is the only time the token is
 shown.** It is saved in `./bk/token.json`; keep that file. To expire the token,
-add `-expires 2027-01-31T00:00:00Z` (RFC 3339).
+add `-expires 2027-01-31T00:00:00Z` (RFC 3339). To restrict where it is used
+from, add `-allow-ip <address or CIDR>` (repeatable) and, for a browser app,
+`-allow-origin <https://host[:port]>` (repeatable; `http` also, no wildcards; a wallet extension such as
+MetaMask calls with its own origin, e.g. `chrome-extension://<id>`, not the dapp's, and a mobile wallet sends
+no `Origin`, so a token with an origin list refuses it). Do not give a token your
+own scripts use an origin list: a request with no `Origin` header is refused
+against one (api code 107). `budgetkitctl user tokens allowlists -id <tok_id>`
+replaces both lists later; a flag left out there is an empty list, which is
+unrestricted.
 
 Errors: `mint failed: 409 Conflict: ...code":79...` means the account already
 holds its maximum of live tokens: list them with
@@ -205,23 +213,28 @@ A `500` (api 46) may still have minted a token: list tokens before minting again
 
 ### A5. Send relays with the token
 
-Relays do not use the CLI. They go to the service's own host:
+Relays do not use the CLI. They go to the service's own host on the Pro domain:
 
 ```sh
-curl -sS -i -X POST "https://$SERVICE.$RELAY_DOMAIN/" \
+curl -sS -i -X POST "https://$SERVICE.pro.$RELAY_DOMAIN/" \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}'
 ```
 
 This body fits an EVM JSON-RPC service; other services take their own
-protocol's request.
+protocol's request. Always send the token in the `Authorization` header. A
+client that cannot may put it as the first path segment,
+`https://$SERVICE.pro.$RELAY_DOMAIN/$TOKEN/`, which is the least secure way: the
+URL lands in logs and histories.
 
 | status | meaning | do |
 |---|---|---|
 | `200` with a JSON-RPC `result` | **success**: the relay was served and charged to your account | continue |
 | `402`, body `error` = `payment required: this request carries no token of a known account` | the token has not reached the relay hosts yet, or it is wrong or revoked (all three give the same answer) | if you minted it in the last minute, wait 5 s and retry, up to 1 minute; otherwise check `TOKEN`, and that it was not revoked |
 | `402`, body `error` = `payment required: this account has no balance left` | your account is out of money | do steps A6 to A10 (pay), then retry |
+| `403` api 107 or 108 | the token's allowlists do not allow this origin or this address | send from an allowed address, or replace the lists with `user tokens allowlists` |
+| `400` api 105 | the request carries two different tokens | send one token, in one place |
 | `429` | over your tier's rate limit, or too many requests from your address | wait the `Retry-After` seconds, retry |
 | `503` with `Retry-After: 1` | the rate limiter could not decide | retry after 1 s |
 | `404` `{"error":"unknown service","service":"..."}` | no such service on this domain | check `SERVICE` |
@@ -247,7 +260,7 @@ A `402` body carries everything needed to pay (shape):
 {"codespace":"api","code":41,"error":"payment required: ...","scheme":"budget",
  "accepts":[{"scheme":"budget","network":"<CHAIN>","asset":"<ASSET>","contract":"<CONTRACT>","pay_to":"<WALLET>",
              "extra":{"bonus_bps":0,"min_confirmations":0}}],
- "notify":"<API_URL>/v1/payments/notify","free_endpoint":"https://<SERVICE>.free.<RELAY_DOMAIN>"}
+ "notify":"<API_URL>/v1/payments/notify","free_endpoint":"https://<SERVICE>.<RELAY_DOMAIN>"}
 ```
 
 ### A6. List payment options and choose one
@@ -260,7 +273,7 @@ Success: `{"chains":[ ... ]}`, one entry per coin (shape):
 
 ```json
 {"chain":"<CHAIN>","asset":"<ASSET>","wallet":"<WALLET>","contract":"<CONTRACT, only for a token>",
- "decimals":18,"bonus_bps":0,"min_confirmations":3,
+ "decimals":18,"bonus_bps":0,"min_confirmations":0,
  "kind":"evm","chain_id":"<CHAIN_ID>","denom":"<DENOM, only for a cosmos coin>",
  "public_rpc_url":"<optional>","display_name":"<optional>","rate_micro_usd":0,"quoted_at":"<time>"}
 ```
@@ -285,8 +298,9 @@ export CHAIN_RPC='<public_rpc_url if the entry has one, otherwise the RPC you we
 ```
 
 - A `wallet` starting with `0x` is an EVM chain; `pokt1...` is Pocket.
-- `bonus_bps` is extra credit: `2000` means the payment is credited at 120% of
-  its value.
+- `bonus_bps` is extra credit in basis points: for example, `500` means the
+  payment is credited at 105% of its value. Read the value in force from the
+  options; we usually offer one when you pay in POKT.
 - An empty `chains` list means no coin can be priced right now: wait a few
   minutes and retry.
 
@@ -411,7 +425,7 @@ confirmations.
 | **`credited`** | **success** | go to the success check |
 | `rejected` | not a valid payment; `reason` and `reason_message` say why | see the table below |
 | `reorged` | its block vanished and it did not come back | pay again, or notify again if it re-appears on chain |
-| `not_found` | the chain never showed it (24 hours after the notice, unless the deployment sets another time) | check `TX_HASH` and `CHAIN`; notifying again reopens it |
+| `not_found` | the chain never showed it within a waiting time set by the deployment, counted from the notice | check `TX_HASH` and `CHAIN`; notifying again reopens it |
 
 A credited receipt (shape):
 
@@ -434,8 +448,8 @@ Rejection reasons (`reason`):
 | `two_senders` | more than one sender in one transaction. Use one plain transfer |
 | `no_price` | temporary; notify the same hash again later |
 | `credit_zero` | too small to credit. Pay a larger amount |
-| `credit_overflow` | too large for one credit. It can be returned: billing-rules.md, "Returns" |
-| `unattributable` | ETH reached `WALLET` funded by two or more addresses in one transaction, or a `SELFDESTRUCT` ran. Send plain ETH from `PAYER_ADDRESS` itself; it can be returned: billing-rules.md, "Returns" |
+| `credit_overflow` | too large for one credit. To claim it: billing-rules.md, "Returns" |
+| `unattributable` | ETH reached `WALLET` funded by two or more addresses in one transaction, or a `SELFDESTRUCT` ran. Send plain ETH from `PAYER_ADDRESS` itself. To claim it: billing-rules.md, "Returns" |
 | `broadcast_refused`, `raw_too_large` | only for `raw_tx`; broadcast yourself and notify `tx_hash` |
 
 **Success check:**
@@ -625,6 +639,10 @@ Branch on `codespace` and `code`. The full tables are in
 | 78 | 404 | no such route here | you are calling the wrong host or path; use `API_URL` |
 | 79 | 409 | too many live tokens | revoke one, then mint |
 | 98, 99, 100 | 400, 404, 422 | the quote's query is wrong, the coin is not offered, or the amount cannot be quoted | fix the query; use a row of the options |
+| 101, 102, 103 | 400 | an allowlist entry is malformed (an origin with a path, an IP with host bits set) or a list holds more than 32 | fix the entry; see [api.md](api.md#per-token-allowlists) |
+| 104 | 500 | the allowlists could not be saved | list tokens, then retry |
+| 105, 106 | 400 | a relay carries two different tokens, or a WebSocket offers its token without `pocket` | send one token; offer `["pocket", token]` |
+| 107, 108 | 403 | the token's allowlists refuse this origin or this address | send from an allowed place, or edit the lists |
 
 ### `payments` codespace (from notify)
 
@@ -647,7 +665,7 @@ Receipt `reason_code` values 15 to 27 are the rejection reasons in step A10.
 1. `tools keygen` (or `bksign -keygen`) printed a uid of 66 hex characters.
 2. The balance call returned `200` with your `uid`.
 3. The mint returned `201` with a `token` starting `pkt_`.
-4. A relay to `https://<SERVICE>.<RELAY_DOMAIN>/` with `Authorization: Bearer <TOKEN>` returned `200`.
+4. A relay to `https://<SERVICE>.pro.<RELAY_DOMAIN>/` with `Authorization: Bearer <TOKEN>` returned `200`.
 5. The payment receipt reached `"status":"credited"`, and the balance afterwards
    shows `credit_micro_usd` increased by `credited_micro_usd` and `tier` `paid`.
 6. After A11, a relay with the revoked token returned `402`.

@@ -1,6 +1,6 @@
 # The `budgetkitctl` CLI
 
-`budgetkitctl` manages a Pocket API Console account from a terminal: it creates
+`budgetkitctl` manages a Pocket API account from a terminal: it creates
 your key, signs every request for you, and calls the account API. It is a single
 binary with no runtime dependencies.
 
@@ -216,6 +216,12 @@ budgetkitctl user prices -key <file> -url <url> [-json] [-verify]
 | `-json` | print the raw response of `GET /v1/prices` |
 | `-verify` | recompute each service's price from the published rate and show the difference |
 
+The report carries the CU peg and the Pocket API Pro service fee, as
+`peg        1B CU = $<peg>, $<price> with the <markup> bps markup`: what a
+billion compute units cost, before and after the service fee. `<markup>` is
+the service fee in basis points (`markup_bps`). The values in force
+are the ones `GET /v1/prices` publishes.
+
 The route needs no signature, but the CLI signs it anyway, so a key file and
 `BUDGETKIT_TARGET` are still required. Without the CLI: `curl -sS
 "$BK_URL/v1/prices"`.
@@ -224,12 +230,17 @@ The route needs no signature, but the CLI signs it anyway, so a key file and
 
 ```
 budgetkitctl user mint-token -key <file> -url <url> [-name <name>] [-expires <RFC 3339 time>]
+    [-allow-origin <origin>]... [-allow-ip <address or CIDR>]...
 ```
 
 | flag | meaning |
 |---|---|
 | `-name` | optional label, up to 128 characters |
-| `-expires` | optional expiry, RFC 3339 (e.g. `2027-01-31T00:00:00Z`). Without it the token never expires |
+| `-expires` | optional expiry, RFC 3339 (e.g. `2027-01-31T00:00:00Z`). Without it the token never expires. At that time the token stops working, and its open WebSocket, gRPC and streaming sessions are closed |
+| `-allow-origin` | optional, repeatable: a browser origin, `http://host[:port]` or `https://host[:port]` with no wildcard, or a browser extension's (`chrome-extension://<id>`, `moz-extension://<uuid>`, `safari-web-extension://<uuid>`), the token may be used from. A wallet extension such as MetaMask calls with its own extension origin, not the dapp's; a mobile wallet sends no Origin, so give a token used from one no origin list. Without it, any origin |
+| `-allow-ip` | optional, repeatable: a client address or a network in CIDR form (`192.0.2.0/24`, `2001:db8::/32`) the token may be used from. Without it, any address |
+
+The allowlists are explained in [api.md](api.md) "Per-token allowlists".
 
 Prints the server's JSON response (shape; the field order is not significant):
 
@@ -245,6 +256,8 @@ with api code 79 means the account already holds its maximum of live tokens.
 
 ```sh
 budgetkitctl user mint-token -key ~/.pocket/pocket.key -url "$BK_URL" -name production-backend
+budgetkitctl user mint-token -key ~/.pocket/pocket.key -url "$BK_URL" -name dapp \
+  -allow-origin https://app.example.com -allow-ip 203.0.113.0/24
 ```
 
 ### `user tokens list`: your tokens
@@ -254,8 +267,39 @@ budgetkitctl user tokens list -key <file> -url <url> [-json]
 ```
 
 Output: a table with `ID`, `NAME`, `CREATED`, `EXPIRES` (`never` for no
-expiry) and `STATE` (`live`, or `revoked <time>`). With no tokens it prints
+expiry), `STATE` (`live`, or `revoked <time>`), `ORIGINS` and `IPS` (each list
+comma-separated, or `any` when it is empty). With no tokens it prints
 `no tokens — mint one with: user mint-token`.
+
+### `user tokens allowlists`: set a token's allowlists
+
+```
+budgetkitctl user tokens allowlists -id <token id> -key <file> -url <url>
+    [-allow-origin <origin>]... [-allow-ip <address or CIDR>]...
+```
+
+| flag | meaning |
+|---|---|
+| `-id` | **required**: the `tok_...` id from `user tokens list` |
+| `-allow-origin` | repeatable: an origin the token may be used from, `http(s)://host[:port]` or a browser extension's |
+| `-allow-ip` | repeatable: an address or CIDR network the token may be used from |
+
+**Both lists are replaced, every time.** The command always sends both lists,
+and a flag you leave out is sent as an empty list, which means unrestricted.
+To keep a list, repeat its entries. To lift every restriction, run it with
+`-id` alone.
+
+Prints `allowlists of <id> set: origins <list>; IPs <list> — its open sessions
+these no longer allow are cut`, with the lists as the server stored them
+(`any origin` or `any address` for an empty one). Open WebSocket, gRPC and
+streaming sessions of the token whose caller the new lists no longer allow are
+closed. An unknown id, a revoked token or one that is not yours is a `404`
+(api code 49); a malformed entry is a `400` (api codes 101 to 103).
+
+```sh
+budgetkitctl user tokens allowlists -key ~/.pocket/pocket.key -url "$BK_URL" -id tok_0123456789abcdef \
+  -allow-origin https://app.example.com -allow-origin https://staging.example.com
+```
 
 ### `user tokens revoke`: revoke a token
 
@@ -268,7 +312,11 @@ budgetkitctl user tokens revoke -id <token id> -key <file> -url <url>
 | `-id` | **required**: the `tok_...` id from `user tokens list` |
 
 Prints `revoked <id> — relays carrying it are refused from the next token notice`.
+The token's open WebSocket, gRPC and streaming sessions are closed too.
 An unknown id, or one that is not yours, is a `404` (api code 49).
+
+To rotate a token, `user mint-token` a new one, move your apps to it, then
+revoke the old one: see [index.md](index.md) "Rotating a token".
 
 ### `user payments`: how to pay
 
@@ -277,8 +325,8 @@ budgetkitctl user payments -key <file> -url <url> [-json]
 ```
 
 Prints one row per coin you can pay with: `CHAIN`, `WALLET` (where to send),
-`ASSET`, `DEC` (decimals), `BONUS BPS` (extra credit in basis points; 2000 =
-+20%), `CONF` (confirmations before credit), `KIND` (`evm` or `cosmos`),
+`ASSET`, `DEC` (decimals), `BONUS BPS` (extra credit in basis points; for
+example, 500 = +5%), `CONF` (confirmations before credit), `KIND` (`evm` or `cosmos`),
 `CHAIN ID` (the chain your wallet must send on) and `DENOM` (what a cosmos
 wallet sends, `-` for an EVM coin), followed by:
 
